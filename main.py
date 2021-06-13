@@ -27,7 +27,7 @@ def receiver_gate(circuit, receiver_qubit_id, classical_registerz, classical_reg
     circuit.z(receiver_qubit_id).c_if(classical_registerz, 1)
 
 
-def create_teleportation_circuit():
+def create_teleportation_circuit(simulation="qasm"):
     # setup qubits and classical bits for quantum teleportation
     quantum_register = QuantumRegister(3, name="q")
     classical_registerz = ClassicalRegister(1, name="crz")
@@ -45,7 +45,7 @@ def create_teleportation_circuit():
     init_gate.label = "init"
     inverse_init_gate = init_gate.gates_to_uncompute()
 
-    teleportation_circuit.append(init_gate, [0])
+    teleportation_circuit.append(init_gate, [third_party_qubit_id])
     teleportation_circuit.barrier()
 
     # The Quantum Teleportation Protocol, step 1
@@ -59,11 +59,18 @@ def create_teleportation_circuit():
     meansure_and_send(teleportation_circuit, third_party_qubit_id, sender_qubit_id)
 
     # The Quantum Teleportation Protocol, step 4
-    teleportation_circuit.barrier()
     receiver_gate(teleportation_circuit, receiver_qubit_id, classical_registerz, classical_registerx)
 
-    # Statevector Simulator
-    statevector_simulation(teleportation_circuit)
+    if simulation == "sv":
+        # Statevector Simulator
+        statevector_simulation(teleportation_circuit)
+    elif simulation == "qasm":
+        # QASM qasm_simulator
+        teleportation_circuit.append(inverse_init_gate, [receiver_qubit_id])
+        classical_register_result = ClassicalRegister(1)
+        teleportation_circuit.add_register(classical_register_result)
+        teleportation_circuit.measure(receiver_qubit_id, 2)
+        qasm_simulation(teleportation_circuit)
 
     teleportation_circuit.draw(output="mpl")
     plt.show()
@@ -74,6 +81,14 @@ def statevector_simulation(circuit):
     qobj = assemble(circuit)
     out_vector = sv_sim.run(qobj).result().get_statevector()
     plot_bloch_multivector(out_vector)
+
+
+def qasm_simulation(circuit):
+    qasm_sim = Aer.get_backend("qasm_simulator")
+    t_qc = transpile(circuit, qasm_sim)
+    qobj = assemble(t_qc)
+    counts = qasm_sim.run(qobj).result().get_counts()
+    plot_histogram(counts)
 
 
 if __name__ == "__main__":
